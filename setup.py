@@ -36,7 +36,7 @@ setup(
         "Framework :: Setuptools Plugin",
     ],
     py_modules=["setuptools_distclean"],
-    install_requires=['six', 'pathspec'],
+    install_requires=['six'],
     entry_points={
         'distutils.commands': [
             'distclean = setuptools_distclean:DistCleanCommand'
