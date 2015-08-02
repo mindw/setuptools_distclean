@@ -2,32 +2,42 @@
 A plugin for setuptools to delete all build products - especially useful
 for binary extensions,
 """
+from __future__ import absolute_import
+
 __version__ = '0.1'
 __author__ = 'Gabi Davar'
 __all__ = ['DistCleanCommand']
 
+
 import os
-from os.path import abspath, join
+from os.path import abspath, join, normcase, relpath
+
 import fnmatch
 import setuptools
-from six import print_ as p
+from six import print_
 from distutils.dir_util import remove_tree
 from distutils.util import strtobool
 from distutils import log
+from itertools import chain
 
 
 def locate(pattern, root_path):
-    for path, dirs, files in os.walk(abspath(root_path)):
-        for filename in fnmatch.filter(dirs + files, pattern):
+    root = abspath(root_path)
+
+    for path, dirs, files in os.walk(root):
+        parent = relpath(path, root)
+
+        candidates = fnmatch.filter(dirs + files, pattern)
+        for filename in candidates:
             yield join(path, filename)
+        if not candidates:
+            local_paths = [join(parent, p) for p in (dirs + files)]
+            for path in fnmatch.filter(local_paths, pattern):
+                yield path
 
 
 class DistCleanCommand(setuptools.Command):
     description = "cleans up all build files, inline or otherwise"
-    produce_pat = [
-        '*.py[cod]',
-        '*.pdb',
-    ]
 
     # dirs
     produce_dir = [
@@ -37,6 +47,8 @@ class DistCleanCommand(setuptools.Command):
         '.tox',
         '.cache',
         '*.egg-info',
+        '*.py[cod]',
+        '*.pdb',
     ]
 
     user_options = [
@@ -54,8 +66,6 @@ class DistCleanCommand(setuptools.Command):
         self.dry_run = False
 
     def finalize_options(self):
-        # self.dry_run = strtobool(self.dry_run)
-        log.info('%s' % self.dry_run)
         self.excluded_paths = [abspath('.git')]
         if self.clean_exclude_paths:
             self.excluded_paths += \
@@ -69,13 +79,14 @@ class DistCleanCommand(setuptools.Command):
         except ValueError:
             pass
 
-        self.included_paths = map(abspath, include_paths)
+        #self.included_paths = map(abspath, include_paths)
+        self.included_paths = include_paths
 
     def run(self):
         log.info("include_paths:\n%s", '\n'.join(self.included_paths))
         dirs = []
-        for pat in self.produce_dir:
-            dirs += locate(pat, '.')
+        for pat in self.included_paths:
+            dirs += locate(normcase(pat), '.')
 
         if self.distribution.clean_exclude_paths:
             self.excluded_paths += map(abspath, self.distribution.clean_exclude_paths)
@@ -95,21 +106,19 @@ class DistCleanCommand(setuptools.Command):
             # don't delete subdirectories of things we already deleted
             dirs = [d for d in dirs if not d.startswith(x)]
 
+        log.info("removing:\n%s", '\n'.join(filtered_dirs))
         if not self.dry_run:
-            map(remove_tree, filtered_dirs)
-
-        paths = []
-        for pat in self.produce_pat:
-            paths += locate(pat, '.')
-
-        if paths:
-            log.info("removing:\n%s", '\n'.join(paths))
-            if not self.dry_run:
-                map(os.remove, paths)
+            for p in filtered_dirs:
+                if os.path.isdir(p):
+                    remove_tree(p)
+                else:
+                    os.remove(p)
+        else:
+            log.info("Dry Run!")
 
 
 def clean_exclude_paths(dist, attr, value):
     pass
 
 if __name__ == "__main__":
-    p('called!')
+    print_('called!')
