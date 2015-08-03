@@ -83,7 +83,7 @@ class DistCleanCommand(setuptools.Command):
         self.included_paths = include_paths
 
     def run(self):
-        log.info("include_paths:\n%s", '\n'.join(self.included_paths))
+        #log.info("include_paths:\n%s", '\n'.join(self.included_paths))
         dirs = []
         for pat in self.included_paths:
             dirs += locate(normcase(pat), '.')
